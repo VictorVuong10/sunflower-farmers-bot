@@ -12,6 +12,8 @@ function delay(ms: number) {
 async function main() {
   let signers = await ethers.getSigners();
   let signerIndex = parseInt(process.env.WALLET || "1") - 1;
+  let gwei = parseInt(process.env.GWEI || "80");
+  let fruits = parseInt(process.env.FRUIT || "5");
   let signer = signers[signerIndex];
   let signerAddress = signer.address;
 
@@ -48,31 +50,55 @@ async function main() {
     );
     let now = moment.utc().unix();
     let diff = now - lastHarvest;
+    
+    let time_fruit = 0
 
-    if (diff < 30 * 60) {
-      console.log("Next farming: ", 30 * 60 - diff, "s later");
-      await delay(30 * 60 - diff + 30);
+    if(fruits == 1){
+      time_fruit = 60;
+    } else if(fruits == 2){
+      time_fruit = 60 * 5;
+    } else if(fruits == 3){
+      time_fruit = 60 * 60;
+    } else if(fruits == 4){
+      time_fruit = 60 * 240;
+    } else if(fruits == 5){
+      time_fruit = 60 * 480;
+    } else if(fruits == 6){
+      time_fruit = 60 * 1440;
+    } else if(fruits == 7){
+      time_fruit = 60 * 4320;
+    } 
+
+    if (diff < time_fruit) {
+      console.log("Next farming: ", time_fruit - diff, "s later");
+      await delay(time_fruit - diff + 5);
       continue;
     }
 
-    let start = now - 1500;
     let events: EventStruct[] = [];
-    for (let j = 0; j < 6; j++) {
-      for (let i = 0; i < farm.length; i++) {
-        events.push({
-          action: 1,
-          createdAt: start + j * 300,
-          fruit: 2,
-          landIndex: i,
-        });
-        events.push({
-          action: 0,
-          createdAt: start + j * 300,
-          fruit: 2,
-          landIndex: i,
-        });
+    for (const [index, slot] of farm.entries()) {
+      if (slot.fruit == 0) {
+          events.push({
+              action: 0,
+              createdAt: now,
+              fruit: fruits,
+              landIndex: index,
+          });
+      } else if (slot.fruit != fruits) {
+          events.push({
+              action: 1,
+              createdAt: now,
+              fruit: slot.fruit,
+              landIndex: index,
+          });
+          events.push({
+              action: 0,
+              createdAt: now,
+              fruit: fruits,
+              landIndex: index,
+          });
       }
-    }
+  }
 
     console.log("===== Gas =====");
     interface GasStation {
@@ -83,6 +109,7 @@ async function main() {
       blockTime: string,
       blockNumber: string
     }
+
     let gasStation: GasStation;
     try {
       const { data } = await axios.get("https://gasstation-mainnet.matic.network/");
@@ -93,7 +120,7 @@ async function main() {
       continue;
     }
 
-    if (gasStation.standard > 50) {
+    if (gasStation.standard > gwei) {
       console.log("Gas price is too high!");
       await delay(1000 * 90);
       continue;
